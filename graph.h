@@ -16,8 +16,10 @@ struct AdjArray {
 
 Edges ReadEdgesFromFile(const char* filename);
 
+int NumVertices(const Edges& edges);
+
 AdjList EdgesToAdjList(const Edges& edges);
 
-void Permute(Edges* edges);
+void Preprocess(Edges* edges);
 
 #endif
