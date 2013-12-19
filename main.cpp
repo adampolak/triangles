@@ -17,10 +17,10 @@ int main(int argc, char *argv[]) {
   AdjList graph;
   {
     Timer t;
-    edges = ReadEdgesFromFile(argv[1]);
+    edges = ReadEdgesFromSNAPFile(argv[1]);
     Log() << "Reading file:        " << t.SinceLast();
-    Preprocess(&edges);
-    Log() << "Preprocess edges:    " << t.SinceLast();
+    NormalizeEdges(&edges);
+    Log() << "Normalize edges:     " << t.SinceLast();
     graph = EdgesToAdjList(edges);
     Log() << "Convert to adj list: " << t.SinceLast();
   }

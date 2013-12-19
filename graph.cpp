@@ -10,9 +10,7 @@
 #include <unordered_set>
 using namespace std;
 
-#include <iostream>
-
-Edges ReadEdgesFromFile(const char* filename) {
+Edges ReadEdgesFromSNAPFile(const char* filename) {
   Edges edges;
   unordered_map<int, int> nodes;
   int next_node = 0;
@@ -40,8 +38,12 @@ int NumVertices(const Edges& edges) {
   return num_vertices;
 }
 
-namespace {
-static void RemoveSelfLoops(Edges* edges) {
+void RemoveDuplicateEdges(Edges* edges) {
+  sort(edges->begin(), edges->end());
+  edges->erase(unique(edges->begin(), edges->end()), edges->end());
+}
+
+void RemoveSelfLoops(Edges* edges) {
   for (int i = 0; i < edges->size(); ++i) {
     if ((*edges)[i].first == (*edges)[i].second) {
       swap((*edges)[i], edges->back());
@@ -50,12 +52,7 @@ static void RemoveSelfLoops(Edges* edges) {
   }
 }
 
-static void RemoveDuplicateEdges(Edges* edges) {
-  sort(edges->begin(), edges->end());
-  edges->erase(unique(edges->begin(), edges->end()), edges->end());
-}
-
-static void MakeUndirected(Edges* edges) {
+void MakeUndirected(Edges* edges) {
   const size_t n = edges->size();
   for (int i = 0; i < n; ++i) {
     pair<int, int> edge = (*edges)[i];
@@ -64,7 +61,11 @@ static void MakeUndirected(Edges* edges) {
   }  
 }
 
-static void PermuteVertices(Edges* edges) {
+void PermuteEdges(Edges* edges) {
+  random_shuffle(edges->begin(), edges->end());
+}
+
+void PermuteVertices(Edges* edges) {
   vector<int> p(NumVertices(*edges));
   for (int i = 0; i < p.size(); ++i)
     p[i] = i;
@@ -75,19 +76,6 @@ static void PermuteVertices(Edges* edges) {
   }
 }
 
-static void PermuteEdges(Edges* edges) {
-  random_shuffle(edges->begin(), edges->end());
-}
-}  // namespace
-
-void Preprocess(Edges* edges) {
-  MakeUndirected(edges);
-  RemoveDuplicateEdges(edges);
-  RemoveSelfLoops(edges);
-  PermuteEdges(edges);
-  PermuteVertices(edges);
-}
-  
 AdjList EdgesToAdjList(const Edges& edges) {
   AdjList graph(NumVertices(edges));
   for (const pair<int, int>& edge : edges)
