@@ -13,17 +13,12 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  Edges edges;
-  AdjList graph;
-  {
-    Timer t;
-    edges = ReadEdgesFromSNAPFile(argv[1]);
-    Log() << "Reading file:        " << t.SinceLast();
-    NormalizeEdges(&edges);
-    Log() << "Normalize edges:     " << t.SinceLast();
-    graph = EdgesToAdjList(edges);
-    Log() << "Convert to adj list: " << t.SinceLast();
-  }
+  Timer t;
+
+  Edges edges = ReadEdgesFromFile(argv[1]);
+  Log() << "Read file:           " << t.SinceLast();
+  AdjList graph = EdgesToAdjList(edges);
+  Log() << "Convert to adj list: " << t.SinceLast();
 
   int num_nodes = graph.size();
   int num_edges = 0;
@@ -31,7 +26,7 @@ int main(int argc, char *argv[]) {
     num_edges += neighbors.size();
   Log() << "Num nodes: " << num_nodes << ", num edges: " << num_edges;
 
-  Timer t;
+  t.SinceLast();  // reset t
   uint64_t c1 = Forward(graph);
   Log() << "Forward:             " << t.SinceLast();
   uint64_t c2 = CompactForward(graph);

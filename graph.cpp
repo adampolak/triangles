@@ -31,6 +31,21 @@ Edges ReadEdgesFromSNAPFile(const char* filename) {
   return edges;
 }
 
+Edges ReadEdgesFromFile(const char* filename) {
+  Edges edges;
+  ifstream in(filename);
+  int a, b;
+  while (in >> a >> b)
+    edges.push_back(make_pair(a, b));
+  return edges;
+}
+
+void WriteEdgesToFile(const Edges& edges, const char* filename) {
+  ofstream out(filename);
+  for (const pair<int, int>& edge : edges)
+    out << edge.first << " " << edge.second << endl;
+}
+
 int NumVertices(const Edges& edges) {
   int num_vertices = 0;
   for (const pair<int, int>& edge : edges)

@@ -120,8 +120,6 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
   for (int i = 0; i < edges.size(); ++i)
     ends[i] = edges[i].second;
 
-  Log() << "Compacting edges " << timer.SinceStart();
-
   vector<vector<int>::iterator> pointers;
   pointers.reserve(n + 1);
   pointers.push_back(ends.begin());
@@ -131,8 +129,6 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
       pointers.push_back(ends.begin() + i);
     }
   pointers.push_back(ends.end());
-
-  Log() << "Storing pointers " << timer.SinceStart();
 
   uint64_t c = 0;
   for (const pair<int, int>& edge : edges) {
