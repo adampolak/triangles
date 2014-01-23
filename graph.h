@@ -35,6 +35,4 @@ inline void NormalizeEdges(Edges* edges) {
 }
 
 AdjList EdgesToAdjList(const Edges& edges);
-
-
 #endif
