@@ -1,22 +1,17 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#include <chrono>
 #include <iostream>
 
 // Walltime timer
 class Timer {
  public:
-  Timer();
-  ~Timer() {}
+  virtual ~Timer() {}
 
-  int SinceStart();  // ms since object construction
-  int SinceLast();  // ms since last call to this method or object construction
+  virtual int SinceStart() = 0;  // ms since object construction
+  virtual int SinceLast() = 0;  // ms since last call to this method or ctor
 
-  typedef std::chrono::high_resolution_clock Clock;
-
- private:
-  Clock::time_point start, last;
+  static Timer* NewTimer();
 };
 
 // Convenient wrapper for writing to stderr. Automagically appends end-of-line.
@@ -31,6 +26,5 @@ const Log& operator<<(const Log& log, const T& t) {
   std::cerr << t;
   return log;
 }
-
 
 #endif

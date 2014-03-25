@@ -4,8 +4,8 @@
 #include <vector>
 #include <utility>
 
-typedef std::vector<std::pair<int, int>> Edges;
-typedef std::vector<std::vector<int>> AdjList;
+typedef std::vector< std::pair<int, int> > Edges;
+typedef std::vector< std::vector<int> > AdjList;
 
 int NumVertices(const Edges& edges);
 
