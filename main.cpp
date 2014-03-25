@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <vector>
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -28,19 +29,20 @@ int main(int argc, char *argv[]) {
     num_edges += neighbors.size();
   Log() << "Num nodes: " << num_nodes << ", num edges: " << num_edges;
 
+  vector<uint64_t> results;
   t->SinceLast();  // reset t
-  /*
-  uint64_t c1 = Forward(graph);
+  //results.push_back(Forward(graph));
   Log() << "Forward:             " << t->SinceLast();
-  uint64_t c2 = CompactForward(graph);
+  //results.push_back(CompactForward(graph));
   Log() << "Compact forward:     " << t->SinceLast();
-  uint64_t c3 = CompactForwardWithPreproc(edges);
+  results.push_back(CompactForwardWithPreproc(edges));
   Log() << "Alternative preproc: " << t->SinceLast();
-  */
-  uint64_t c4 = GpuEdgeIterator(edges);
+  results.push_back(GpuEdgeIterator(edges));
   Log() << "GPU edge iterator: " << t->SinceLast();
-  /*
-  Log() << c1 << " " << c2 << " " << c3;
-  assert(c1 == c2 && c2 == c3);
-  */
+  for (uint64_t result : results)
+    cerr << result << " ";
+  cerr << endl;
+  if (results.size() > 0)
+    for (uint64_t result : results)
+      assert(result == results.front());
 }

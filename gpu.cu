@@ -1,12 +1,14 @@
 #include "gpu.h"
 
+#include "timer.h"
+
 #include <cuda_runtime.h>
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 
 #include <algorithm>
 #include <cassert>
-#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 #include <utility>
@@ -16,8 +18,8 @@ __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
   int step = gridDim.x * blockDim.x;
   for (int i = from; i < m; i += step) {
-    int prev = i > 0 ? edges[2 * (i - 1)] : -1;
-    int next = edges[2 * i];
+    int prev = i > 0 ? edges[2 * (i - 1) + 1] : -1;
+    int next = edges[2 * i + 1];
     for (int j = prev + 1; j <= next; ++j)
       pointers[j] = i;
   }
@@ -33,15 +35,13 @@ void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
 #define CUCHECK(x) CudaAssert(x, #x, __FILE__, __LINE__)
 
 uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
-  //Timer timer;
+  Timer* timer = Timer::NewTimer();
   
   const int n = NumVertices(unordered_edges);
   const int m = unordered_edges.size();
 
-  //Log() << "Calc num vertices " << timer.SinceLast();
+  Log() << "Calc num vertices " << timer->SinceLast();
   
-  //Log() << "Device initialization " << timer.SinceLast();
-
   int* dev_edges;
   int* dev_pointers;
   int* dev_results;
@@ -50,36 +50,37 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaMalloc(&dev_pointers, (n + 1) * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_results, m * sizeof(int)));
 
-  //Log() << "cudaMalloc " << timer.SinceLast();
+  Log() << "cudaMalloc " << timer->SinceLast();
 
-  cerr << "Malloc done" << endl;
 
   CUCHECK(cudaMemcpyAsync(dev_edges, unordered_edges.data(),
                           m * 2 * sizeof(int),
                           cudaMemcpyHostToDevice));
 
-  cerr << "Memcpy done" << endl;
+  CUCHECK(cudaDeviceSynchronize());
 
+  Log() << "Memcpy done " << timer->SinceLast();
   
   thrust::sort(thrust::device_ptr<uint64_t>((uint64_t*)dev_edges),
                thrust::device_ptr<uint64_t>((uint64_t*)dev_edges + m));
   
+  CUCHECK(cudaDeviceSynchronize());
 
-  cerr << "Sort done" << endl;
+  Log() << "Sort done " << timer->SinceLast();
 
-  CalculatePointers<<<(m + 256 - 1) / 256, 256>>>(n, m, dev_edges, dev_pointers);
+  CalculatePointers<<<48, 256>>>(n, m, dev_edges, dev_pointers);
 
   CUCHECK(cudaDeviceSynchronize());
 
-  cerr << "Calc ptrs kernel done" << endl;
-
-
+  Log() << "Calc ptrs kernel done " << timer->SinceLast();
 
   CUCHECK(cudaFree(dev_edges));
   CUCHECK(cudaFree(dev_pointers));
   CUCHECK(cudaFree(dev_results));
   
-  cerr << "Free done" << endl;
+  Log() << "Free done " << timer->SinceLast();
+
+  delete timer;
 
   return 0;
 }
