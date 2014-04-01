@@ -4,6 +4,7 @@
 
 #include <cuda_runtime.h>
 #include <thrust/device_ptr.h>
+#include <thrust/reduce.h>
 #include <thrust/sort.h>
 
 #include <algorithm>
@@ -13,6 +14,14 @@
 #include <vector>
 #include <utility>
 using namespace std;
+
+struct IsBackward {
+  __host__ __device__ bool operator()(const unsigned long long edge) {
+    int a = edge >> 32;
+    int b = (edge << 32) >> 32;
+    return a < b;
+  }
+};
 
 __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
@@ -26,6 +35,31 @@ __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   if (from == 0) pointers[n] = m;
 }
 
+__global__ void CalculateTriangles(int m, int* edges, int* pointers, int* results) {
+  int from = blockDim.x * blockIdx.x + threadIdx.x;
+  int step = gridDim.x * blockDim.x;
+  for (int i = from; i < m; i += step) {
+    int u = edges[2 * i], v = edges[2 * i + 1];
+    int u_start = pointers[u], u_end = pointers[u + 1];
+    int v_start = pointers[v], v_end = pointers[v + 1];
+    int u_it = u_start, v_it = v_start;
+    int count = 0;
+    while (u_it < u_end && v_it < v_end) {
+      int a = edges[2 * u_it], b = edges[2 * v_it];
+      if (a < b) {
+        ++u_it;
+      } else if (a > b) {
+        ++v_it;
+      } else {
+        ++count;
+        ++u_it;
+        ++v_it;
+      }
+    }
+    results[i] = count;
+  }
+}
+
 void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
   if (status == cudaSuccess) return;
   cerr << "Cuda error: " << code << ", file " << file << ", line " << l << endl;
@@ -37,8 +71,8 @@ void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
 uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   Timer* timer = Timer::NewTimer();
   
-  const int n = NumVertices(unordered_edges);
-  const int m = unordered_edges.size();
+  int n = NumVertices(unordered_edges);
+  int m = unordered_edges.size();
 
   Log() << "Calc num vertices " << timer->SinceLast();
   
@@ -60,9 +94,17 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaDeviceSynchronize());
 
   Log() << "Memcpy done " << timer->SinceLast();
-  
-  thrust::sort(thrust::device_ptr<uint64_t>((uint64_t*)dev_edges),
-               thrust::device_ptr<uint64_t>((uint64_t*)dev_edges + m));
+
+  thrust::remove_if(
+     thrust::device_ptr<uint64_t>((uint64_t*)dev_edges),
+     thrust::device_ptr<uint64_t>((uint64_t*)dev_edges + m),
+     IsBackward());
+
+  m /= 2;
+
+  thrust::sort(
+    thrust::device_ptr<uint64_t>((uint64_t*)dev_edges),
+    thrust::device_ptr<uint64_t>((uint64_t*)dev_edges + m));
   
   CUCHECK(cudaDeviceSynchronize());
 
@@ -74,6 +116,19 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
 
   Log() << "Calc ptrs kernel done " << timer->SinceLast();
 
+  CalculateTriangles<<<48, 256>>>(m, dev_edges, dev_pointers, dev_results);
+
+  CUCHECK(cudaDeviceSynchronize());
+
+  Log() << "Calc tri kernel done " << timer->SinceLast();
+
+  uint64_t result = 0;
+  result = thrust::reduce(
+      thrust::device_ptr<int>(dev_results),
+      thrust::device_ptr<int>(dev_results + m));
+
+  Log() << "Reduce done " << timer->SinceLast();
+
   CUCHECK(cudaFree(dev_edges));
   CUCHECK(cudaFree(dev_pointers));
   CUCHECK(cudaFree(dev_results));
@@ -82,6 +137,5 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
 
   delete timer;
 
-  return 0;
+  return result;
 }
-
