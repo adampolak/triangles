@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 void SortEdges(int m, int* edges);
-void RemoveBackwardEdges(int m, int *edges, int* pointers);
+void RemoveMarkedEdges(int m, int *edges, int* flags);
 uint64_t SumResults(int m, int* results);
 
 #endif

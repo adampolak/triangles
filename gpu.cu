@@ -30,6 +30,18 @@ __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   if (from == 0) pointers[n] = m;
 }
 
+__global__ void CalculateFlags(int m, int* edges, int* pointers, int* flags) {
+  int from = blockDim.x * blockIdx.x + threadIdx.x;
+  int step = gridDim.x * blockDim.x;
+  for (int i = from; i < m; i += step) {
+    int a = edges[2 * i];
+    int b = edges[2 * i + 1];
+    int deg_a = pointers[a + 1] - pointers[a];
+    int deg_b = pointers[b + 1] - pointers[b];
+    flags[i] = (deg_a < deg_b) || (deg_a == deg_b && a < b);
+  }
+}
+
 __global__ void UnzipEdges(int m, int* edges, int* unzipped_edges) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
   int step = gridDim.x * blockDim.x;
@@ -108,7 +120,9 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaDeviceSynchronize());
   Log() << "Calculate ptrs 1 " << timer->SinceLast();
 
-  RemoveBackwardEdges(m, dev_edges, dev_pointers);
+  CalculateFlags<<<NUM_BLOCKS, NUM_THREADS>>>(
+      m, dev_edges, dev_pointers, dev_results);
+  RemoveMarkedEdges(m, dev_edges, dev_results);
   CUCHECK(cudaDeviceSynchronize());
   Log() << "Remove backward edges " << timer->SinceLast();
 
