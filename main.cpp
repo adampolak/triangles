@@ -20,20 +20,18 @@ int main(int argc, char *argv[]) {
 
   Edges edges = ReadEdgesFromFile(argv[1]);
   Log() << "Read file:           " << t->SinceLast();
-  AdjList graph = EdgesToAdjList(edges);
+  // AdjList graph = EdgesToAdjList(edges);
   Log() << "Convert to adj list: " << t->SinceLast();
 
-  int num_nodes = graph.size();
-  int num_edges = 0;
-  for (const auto& neighbors : graph)
-    num_edges += neighbors.size();
+  int num_nodes = NumVertices(edges);
+  int num_edges = edges.size();
   Log() << "Num nodes: " << num_nodes << ", num edges: " << num_edges;
 
   vector<uint64_t> results;
   t->SinceLast();  // reset t
-  //results.push_back(Forward(graph));
+  // results.push_back(Forward(graph));
   Log() << "Forward:             " << t->SinceLast();
-  //results.push_back(CompactForward(graph));
+  // results.push_back(CompactForward(graph));
   Log() << "Compact forward:     " << t->SinceLast();
   results.push_back(CompactForwardWithPreproc(edges));
   Log() << "Alternative preproc: " << t->SinceLast();

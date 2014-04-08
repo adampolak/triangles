@@ -16,10 +16,13 @@ latapy.e: latapy.c
 gpu.o: gpu.cu
 	$(NVCC) $(NVCCFLAGS) -c gpu.cu -o gpu.o
 
+gpu-thrust.o: gpu-thrust.cu
+	$(NVCC) $(NVCCFLAGS) -c gpu-thrust.cu -o gpu-thrust.o
+
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-main.e: forward.o gpu.o graph.o main.o timer.o
+main.e: forward.o gpu.o gpu-thrust.o graph.o main.o timer.o
 	$(NVCC) $^ -o $@
 
 .PHONY: clean
