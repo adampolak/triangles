@@ -14,7 +14,7 @@
 #include <utility>
 using namespace std;
 
-#define NUM_BLOCKS 42
+#define NUM_BLOCKS 84
 #define NUM_THREADS 128
 #define WARP_SIZE 4
 #define NUM_WORKERS (NUM_BLOCKS * NUM_THREADS / WARP_SIZE)
@@ -57,23 +57,22 @@ __global__ void CalculateTriangles(
   int from = (NUM_THREADS * blockIdx.x + threadIdx.x) / WARP_SIZE;
   int step = NUM_WORKERS;
   uint64_t count = 0;
+
   for (int i = from; i < m; i += step) {
     int u = edges[i], v = edges[m + i];
 
     int u_it = pointers[u], u_end = pointers[u + 1];
     int v_it = pointers[v], v_end = pointers[v + 1];
 
+    int a = edges[u_it], b = edges[v_it]; 
     while (u_it < u_end && v_it < v_end) {
-      int a = edges[u_it], b = edges[v_it];
-      if (a < b) {
-        ++u_it;
-      } else if (a > b) {
-        ++v_it;
-      } else {
-        ++u_it;
-        ++v_it;
+      int d = a - b;
+      if (d <= 0)
+        a = edges[++u_it];
+      if (d >= 0)
+        b = edges[++v_it];
+      if (d == 0) 
         ++count;
-      }
     }
   }
 
@@ -97,18 +96,15 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   timer->Done("Calculate number of vertices");
 
   int* dev_edges;
-  int* dev_edges_unzipped;
   bool* dev_flags;
   int* dev_pointers;
   uint64_t* dev_results;
 
   CUCHECK(cudaMalloc(&dev_edges, m * 2 * sizeof(int)));
-  CUCHECK(cudaMalloc(&dev_edges_unzipped, m * 2 * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_flags, m * sizeof(bool)));
   CUCHECK(cudaMalloc(&dev_pointers, (n + 1) * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_results, NUM_WORKERS * sizeof(uint64_t)));
   timer->Done("Malloc");
-
 
   CUCHECK(cudaMemcpyAsync(dev_edges, unordered_edges.data(),
                           m * 2 * sizeof(int),
@@ -136,6 +132,8 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Calculate pointers 2");
 
+  int* dev_edges_unzipped = dev_edges + 2 * m;
+
   UnzipEdges<<<NUM_BLOCKS, NUM_THREADS>>>(m, dev_edges, dev_edges_unzipped);
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Unzip edges");
@@ -152,7 +150,6 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   timer->Done("Reduce");
 
   CUCHECK(cudaFree(dev_edges));
-  CUCHECK(cudaFree(dev_edges_unzipped));
   CUCHECK(cudaFree(dev_flags));
   CUCHECK(cudaFree(dev_pointers));
   CUCHECK(cudaFree(dev_results));
