@@ -19,24 +19,25 @@ int main(int argc, char *argv[]) {
   unique_ptr<Timer> t(Timer::NewTimer());
 
   Edges edges = ReadEdgesFromFile(argv[1]);
-  Log() << "Read file:           " << t->SinceLast();
+  t->Done("Read file");
   // AdjList graph = EdgesToAdjList(edges);
-  Log() << "Convert to adj list: " << t->SinceLast();
+  t->Done("Convert to adjacency lists");
 
   int num_nodes = NumVertices(edges);
   int num_edges = edges.size();
-  Log() << "Num nodes: " << num_nodes << ", num edges: " << num_edges;
-
+  cerr << "Number of nodes: " << num_nodes
+       << ", number of edges: " << num_edges << endl;
+  
   vector<uint64_t> results;
-  t->SinceLast();  // reset t
+  t->Reset();
   // results.push_back(Forward(graph));
-  Log() << "Forward:             " << t->SinceLast();
+  t->Done("ALGORITHM: Forward Classic");
   // results.push_back(CompactForward(graph));
-  Log() << "Compact forward:     " << t->SinceLast();
-  results.push_back(CompactForwardWithPreproc(edges));
-  Log() << "Alternative preproc: " << t->SinceLast();
+  t->Done("ALGORITHM: Forward Compact");
+  // results.push_back(CompactForwardWithPreproc(edges));
+  t->Done("ALGORITHM: Alt preproc");
   results.push_back(GpuEdgeIterator(edges));
-  Log() << "GPU edge iterator: " << t->SinceLast();
+  t->Done("ALGORITHM: Forward GPU");
   for (uint64_t result : results)
     cerr << result << " ";
   cerr << endl;

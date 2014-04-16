@@ -94,9 +94,9 @@ uint64_t CompactForward(const AdjList& graph) {
 
 uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
   unique_ptr<Timer> timer(Timer::NewTimer());
-  
+    
   const int n = NumVertices(unordered_edges);
-  Log() << "Calc num vertices " << timer->SinceLast();
+  timer->Done("Calculate number of vertices");
   
   Edges edges;
   {
@@ -104,7 +104,7 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
     vector<int> deg(n);
     for (const pair<int, int>& edge : unordered_edges)
       deg[edge.first]++;
-    Log() << "Calc degs " << timer->SinceLast();
+    timer->Done("Calculate degrees");
     vector<pair<int, int>> temp(n);
     for (int i = 0; i < n; ++i)
       temp[i] = make_pair(n - deg[i], i);
@@ -112,7 +112,7 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
     vector<int> rename(n);
     for (int i = 0; i < n; ++i)
       rename[temp[i].second] = i;
-    Log() << "Calculate renaming permutation " << timer->SinceLast();
+    timer->Done("Calculate renaming permutation");
     //*/
     edges.reserve(unordered_edges.size() / 2);
     for (const pair<int, int>& edge : unordered_edges) {
@@ -122,9 +122,9 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
       if (s > t)
         edges.push_back(make_pair(s, t));
     }
-    Log() << "Copy and (optionally) rename edges " << timer->SinceLast();
+    timer->Done("Copy and (optionally) rename edges");
     sort(edges.begin(), edges.end());
-    Log() << "Sort edges " << timer->SinceLast();
+    timer->Done("Sort edges");
   }
 
   vector<int> ends(edges.size());
@@ -144,7 +144,7 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
   while (pointers.size() < n + 1)
     pointers.push_back(ends.end());
   
-  Log() << "Total preproc " << timer->SinceStart();
+  timer->Done("Copy edges and calculate pointers");
   
   uint64_t c = 0;
   for (const pair<int, int>& edge : edges) {

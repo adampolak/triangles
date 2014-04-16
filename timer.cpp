@@ -1,33 +1,31 @@
 #include "timer.h"
 
 #include <chrono>
+#include <iostream>
 using namespace std;
 
 namespace {
-template<typename T>
-int ToMillis(T t) {
-  return chrono::duration_cast<chrono::milliseconds>(t).count();
-}
-
 class TimerImpl : public Timer {
  public:
-  TimerImpl() : start(Clock::now()), last(start) {}
+  TimerImpl() : last(Clock::now()) {}
   virtual ~TimerImpl() {}
 
-  virtual int SinceStart() { return ToMillis(Clock::now() - start); }
-  
-  virtual int SinceLast() {
-    auto now = Clock::now();
-    int ret = ToMillis(now - last);
+  virtual int Done(const char* label) {
+    Clock::time_point now = Clock::now();
+    int res = chrono::duration_cast<chrono::milliseconds>(now - last).count();
     last = now;
-    return ret;
-    return 0;
+    cerr << label << " " << res << endl;
+    return res;
+  }
+
+  virtual void Reset() {
+    last = Clock::now();
   }
 
   typedef std::chrono::high_resolution_clock Clock;
 
  private:
-  Clock::time_point start, last;
+  Clock::time_point last;
 };
 }  // namespace
 

@@ -92,7 +92,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   int n = NumVertices(unordered_edges);
   int m = unordered_edges.size();
 
-  Log() << "Calculate num vertices " << timer->SinceLast();
+  timer->Done("Calculate number of vertices");
 
   int* dev_edges;
   int* dev_edges_unzipped;
@@ -103,55 +103,55 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaMalloc(&dev_edges_unzipped, m * 2 * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_pointers, (n + 1) * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_results, m * sizeof(int)));
-  Log() << "Malloc " << timer->SinceLast();
+  timer->Done("Malloc");
 
 
   CUCHECK(cudaMemcpyAsync(dev_edges, unordered_edges.data(),
                           m * 2 * sizeof(int),
                           cudaMemcpyHostToDevice));
   CUCHECK(cudaDeviceSynchronize());
-  Log() << "Memcpy " << timer->SinceLast();
+  timer->Done("Memcpy");
 
   SortEdges(m, dev_edges);
   CUCHECK(cudaDeviceSynchronize());
-  Log() << "Sort edges " << timer->SinceLast();
+  timer->Done("Sort edges");
 
   CalculatePointers<<<NUM_BLOCKS, NUM_THREADS>>>(n, m, dev_edges, dev_pointers);
   CUCHECK(cudaDeviceSynchronize());
-  Log() << "Calculate ptrs 1 " << timer->SinceLast();
+  timer->Done("Calculate pointers 1");
 
   CalculateFlags<<<NUM_BLOCKS, NUM_THREADS>>>(
       m, dev_edges, dev_pointers, dev_results);
   RemoveMarkedEdges(m, dev_edges, dev_results);
   CUCHECK(cudaDeviceSynchronize());
-  Log() << "Remove backward edges " << timer->SinceLast();
+  timer->Done("Remove backward edges");
 
   m /= 2;
  
   CalculatePointers<<<NUM_BLOCKS, NUM_THREADS>>>(n, m, dev_edges, dev_pointers);
   CUCHECK(cudaDeviceSynchronize());
-  Log() << "Calculate ptrs 2 " << timer->SinceLast();
+  timer->Done("Calculate pointers 2");
 
   UnzipEdges<<<NUM_BLOCKS, NUM_THREADS>>>(m, dev_edges, dev_edges_unzipped);
   CUCHECK(cudaDeviceSynchronize());
-  Log() << "Unzip edges " << timer->SinceLast();
+  timer->Done("Unzip edges");
 
   cudaProfilerStart();
   CalculateTriangles<<<NUM_BLOCKS, NUM_THREADS>>>(
       m, dev_edges_unzipped, dev_pointers, dev_results);
   CUCHECK(cudaDeviceSynchronize());
   cudaProfilerStop();
-  Log() << "Calculate triangles " << timer->SinceLast();
+  timer->Done("Calculate triangles");
 
   uint64_t result = 0;
   result = SumResults(m, dev_results);
-  Log() << "Reduce " << timer->SinceLast();
+  timer->Done("Reduce");
 
   CUCHECK(cudaFree(dev_edges));
   CUCHECK(cudaFree(dev_edges_unzipped));
   CUCHECK(cudaFree(dev_pointers));
   CUCHECK(cudaFree(dev_results));
-  Log() << "Free " << timer->SinceLast();
+  timer->Done("Free");
 
   delete timer;
 
