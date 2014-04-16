@@ -13,13 +13,10 @@ convert-to-latapy-main.e: convert-to-latapy-main.cpp graph.cpp
 latapy.e: latapy.c
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
-gpu.o: gpu.cu
-	$(NVCC) $(NVCCFLAGS) -c gpu.cu -o gpu.o
+%.o: %.cu %.h
+	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
-gpu-thrust.o: gpu-thrust.cu
-	$(NVCC) $(NVCCFLAGS) -c gpu-thrust.cu -o gpu-thrust.o
-
-%.o: %.cpp
+%.o: %.cpp %.h
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 main.e: forward.o gpu.o gpu-thrust.o graph.o main.o timer.o
