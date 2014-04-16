@@ -17,6 +17,7 @@ using namespace std;
 #define NUM_BLOCKS 42
 #define NUM_THREADS 128
 #define WARP_SIZE 4
+#define NUM_WORKERS (NUM_BLOCKS * NUM_THREADS / WARP_SIZE)
 
 __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
@@ -30,7 +31,7 @@ __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   if (from == 0) pointers[n] = m;
 }
 
-__global__ void CalculateFlags(int m, int* edges, int* pointers, int* flags) {
+__global__ void CalculateFlags(int m, int* edges, int* pointers, bool* flags) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
   int step = gridDim.x * blockDim.x;
   for (int i = from; i < m; i += step) {
@@ -52,15 +53,15 @@ __global__ void UnzipEdges(int m, int* edges, int* unzipped_edges) {
 }
 
 __global__ void CalculateTriangles(
-    int m, int* edges, int* pointers, int* results) {
+    int m, int* edges, int* pointers, uint64_t* results) {
   int from = (NUM_THREADS * blockIdx.x + threadIdx.x) / WARP_SIZE;
-  int step = NUM_BLOCKS * NUM_THREADS / WARP_SIZE;
+  int step = NUM_WORKERS;
+  uint64_t count = 0;
   for (int i = from; i < m; i += step) {
     int u = edges[i], v = edges[m + i];
 
     int u_it = pointers[u], u_end = pointers[u + 1];
     int v_it = pointers[v], v_end = pointers[v + 1];
-    int count = 0;
 
     while (u_it < u_end && v_it < v_end) {
       int a = edges[u_it], b = edges[v_it];
@@ -69,13 +70,14 @@ __global__ void CalculateTriangles(
       } else if (a > b) {
         ++v_it;
       } else {
-        ++count;
         ++u_it;
         ++v_it;
+        ++count;
       }
     }
-    results[i] = count;
   }
+
+  results[from] = count;
 }
 
 void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
@@ -96,13 +98,15 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
 
   int* dev_edges;
   int* dev_edges_unzipped;
+  bool* dev_flags;
   int* dev_pointers;
-  int* dev_results;
+  uint64_t* dev_results;
 
   CUCHECK(cudaMalloc(&dev_edges, m * 2 * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_edges_unzipped, m * 2 * sizeof(int)));
+  CUCHECK(cudaMalloc(&dev_flags, m * sizeof(bool)));
   CUCHECK(cudaMalloc(&dev_pointers, (n + 1) * sizeof(int)));
-  CUCHECK(cudaMalloc(&dev_results, m * sizeof(int)));
+  CUCHECK(cudaMalloc(&dev_results, NUM_WORKERS * sizeof(uint64_t)));
   timer->Done("Malloc");
 
 
@@ -121,8 +125,8 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   timer->Done("Calculate pointers 1");
 
   CalculateFlags<<<NUM_BLOCKS, NUM_THREADS>>>(
-      m, dev_edges, dev_pointers, dev_results);
-  RemoveMarkedEdges(m, dev_edges, dev_results);
+      m, dev_edges, dev_pointers, dev_flags);
+  RemoveMarkedEdges(m, dev_edges, dev_flags);
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Remove backward edges");
 
@@ -144,11 +148,12 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   timer->Done("Calculate triangles");
 
   uint64_t result = 0;
-  result = SumResults(m, dev_results);
+  result = SumResults(NUM_WORKERS, dev_results);
   timer->Done("Reduce");
 
   CUCHECK(cudaFree(dev_edges));
   CUCHECK(cudaFree(dev_edges_unzipped));
+  CUCHECK(cudaFree(dev_flags));
   CUCHECK(cudaFree(dev_pointers));
   CUCHECK(cudaFree(dev_results));
   timer->Done("Free");

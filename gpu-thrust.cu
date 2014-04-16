@@ -9,13 +9,13 @@ void SortEdges(int m, int* edges) {
   thrust::sort(ptr, ptr + m);
 }
 
-void RemoveMarkedEdges(int m, int* edges, int* flags) {
+void RemoveMarkedEdges(int m, int* edges, bool* flags) {
   thrust::device_ptr<uint64_t> ptr((uint64_t*)edges);
-  thrust::device_ptr<int> ptr_flags(flags);
-  thrust::remove_if(ptr, ptr + m, ptr_flags, thrust::identity<int>());
+  thrust::device_ptr<bool> ptr_flags(flags);
+  thrust::remove_if(ptr, ptr + m, ptr_flags, thrust::identity<bool>());
 }
 
-uint64_t SumResults(int m, int* results) {
-  thrust::device_ptr<int> ptr(results);
-  return thrust::reduce(ptr, ptr + m);
+uint64_t SumResults(int size, uint64_t* results) {
+  thrust::device_ptr<uint64_t> ptr(results);
+  return thrust::reduce(ptr, ptr + size);
 }
