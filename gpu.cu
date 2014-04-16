@@ -14,10 +14,7 @@
 #include <utility>
 using namespace std;
 
-#define NUM_BLOCKS 112
-#define NUM_THREADS 64
 #define GROUP_SIZE 1
-#define NUM_WORKERS (NUM_BLOCKS * NUM_THREADS / GROUP_SIZE)
 
 __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
@@ -87,9 +84,23 @@ void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
 
 #define CUCHECK(x) CudaAssert(x, #x, __FILE__, __LINE__)
 
+int NumberOfMP() {
+  int dev;
+  CUCHECK(cudaGetDevice(&dev));
+  int val;
+  CUCHECK(cudaDeviceGetAttribute(&val, cudaDevAttrMultiProcessorCount, dev));
+  return val;
+}
+
 uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   Timer* timer = Timer::NewTimer();
   
+  const int NUM_THREADS = 64;
+  const int NUM_BLOCKS = 8 * NumberOfMP();
+  const int NUM_WORKERS = NUM_THREADS * NUM_BLOCKS / GROUP_SIZE;
+
+  timer->Done("Calculate number of threads and blocks");
+
   int n = NumVertices(unordered_edges);
   int m = unordered_edges.size();
 
