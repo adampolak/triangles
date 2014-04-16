@@ -14,10 +14,10 @@
 #include <utility>
 using namespace std;
 
-#define NUM_BLOCKS 84
-#define NUM_THREADS 128
-#define WARP_SIZE 4
-#define NUM_WORKERS (NUM_BLOCKS * NUM_THREADS / WARP_SIZE)
+#define NUM_BLOCKS 112
+#define NUM_THREADS 64
+#define GROUP_SIZE 1
+#define NUM_WORKERS (NUM_BLOCKS * NUM_THREADS / GROUP_SIZE)
 
 __global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
@@ -54,8 +54,8 @@ __global__ void UnzipEdges(int m, int* edges, int* unzipped_edges) {
 
 __global__ void CalculateTriangles(
     int m, int* edges, int* pointers, uint64_t* results) {
-  int from = (NUM_THREADS * blockIdx.x + threadIdx.x) / WARP_SIZE;
-  int step = NUM_WORKERS;
+  int from = (blockDim.x * blockIdx.x + threadIdx.x) / GROUP_SIZE;
+  int step = gridDim.x * blockDim.x / GROUP_SIZE;
   uint64_t count = 0;
 
   for (int i = from; i < m; i += step) {
@@ -104,6 +104,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaMalloc(&dev_flags, m * sizeof(bool)));
   CUCHECK(cudaMalloc(&dev_pointers, (n + 1) * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_results, NUM_WORKERS * sizeof(uint64_t)));
+
   timer->Done("Malloc");
 
   CUCHECK(cudaMemcpyAsync(dev_edges, unordered_edges.data(),
@@ -138,12 +139,25 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Unzip edges");
 
+  cudaFuncSetCacheConfig(CalculateTriangles, cudaFuncCachePreferL1);
   cudaProfilerStart();
   CalculateTriangles<<<NUM_BLOCKS, NUM_THREADS>>>(
       m, dev_edges_unzipped, dev_pointers, dev_results);
   CUCHECK(cudaDeviceSynchronize());
   cudaProfilerStop();
   timer->Done("Calculate triangles");
+
+  /*
+  int BB, TT;
+  while (cin >> BB >> TT) {
+    cerr << BB << " " << TT ;
+    timer->Reset();
+    CalculateTriangles<<<BB,TT>>>(
+        m, dev_edges_unzipped, dev_pointers, (uint64_t*)dev_flags);
+    CUCHECK(cudaDeviceSynchronize());
+    timer->Done("");
+  }
+  //*/
 
   uint64_t result = 0;
   result = SumResults(NUM_WORKERS, dev_results);
