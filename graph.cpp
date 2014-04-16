@@ -31,6 +31,26 @@ Edges ReadEdgesFromSNAPFile(const char* filename) {
   return edges;
 }
 
+Edges ReadEdgesFromDIMACSFile(const char* filename) {
+  Edges edges;
+  ifstream in(filename);
+  assert(in.is_open());
+  string buf;
+  getline(in, buf);
+  int n, m;
+  sscanf(buf.c_str(), "%d %d", &n, &m);
+  edges.reserve(2 * m);
+  for (int i = 0; i < n; ++i) {
+    getline(in, buf);
+    istringstream parser(buf);
+    int neighbor;
+    while (parser >> neighbor) {
+      edges.push_back(make_pair(i, neighbor - 1));
+    }
+  }
+  return edges;
+}
+
 Edges ReadEdgesFromFile(const char* filename) {
   Edges edges;
   ifstream in(filename, ios::binary);

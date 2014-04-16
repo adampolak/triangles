@@ -17,6 +17,7 @@ struct AdjArray {
 */
 
 Edges ReadEdgesFromSNAPFile(const char* filename);
+Edges ReadEdgesFromDIMACSFile(const char* filename);
 Edges ReadEdgesFromFile(const char* filename);
 void WriteEdgesToFile(const Edges& edges, const char* filename);
 

@@ -4,6 +4,9 @@ CXXFLAGS=-std=c++0x -O3
 NVCC=/usr/local/cuda/bin/nvcc
 NVCCFLAGS=-m64 -arch sm_20
 
+convert-from-dimacs-main.e: convert-from-dimacs-main.cpp graph.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
 convert-from-snap-main.e: convert-from-snap-main.cpp graph.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
