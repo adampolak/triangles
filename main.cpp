@@ -36,8 +36,13 @@ int main(int argc, char *argv[]) {
   t->Done("ALGORITHM: Forward Compact");
   // results.push_back(CompactForwardWithPreproc(edges));
   t->Done("ALGORITHM: Alt preproc");
+  PreInitGpuContext(0);
+  t->Done("Preinitialize context for a default device");
   results.push_back(GpuEdgeIterator(edges));
   t->Done("ALGORITHM: Forward GPU");
+  // for (int i = 0; i < 4; ++i)
+  //   PreInitGpuContext(i);
+  // t->Done("Preinitialize context for all four devices");
   // results.push_back(GpuEdgeIterator(edges, 4));
   t->Done("ALGORITHM: Forward multi GPU");
   for (uint64_t result : results)

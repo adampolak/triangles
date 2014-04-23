@@ -166,6 +166,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
 uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
   Timer* timer = Timer::NewTimer();
 
+  CUCHECK(cudaSetDevice(0));
   const int NUM_BLOCKS = NUM_BLOCKS_PER_MP * NumberOfMPs();
 
   timer->Done("Query number of MPs");
@@ -250,4 +251,9 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
   delete timer;
 
   return result;
+}
+
+void PreInitGpuContext(int device) {
+  CUCHECK(cudaSetDevice(device));
+  CUCHECK(cudaFree(NULL));
 }
