@@ -11,6 +11,7 @@ http://www.cc.gatech.edu/dimacs10/archive/data/kronecker/kron_g500-logn17.graph.
 http://www.cc.gatech.edu/dimacs10/archive/data/kronecker/kron_g500-logn18.graph.bz2
 http://www.cc.gatech.edu/dimacs10/archive/data/kronecker/kron_g500-logn19.graph.bz2
 http://www.cc.gatech.edu/dimacs10/archive/data/kronecker/kron_g500-logn20.graph.bz2
+http://www.cc.gatech.edu/dimacs10/archive/data/kronecker/kron_g500-logn21.graph.bz2
 "
 
 make convert-from-snap-main.e
