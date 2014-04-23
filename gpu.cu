@@ -205,14 +205,15 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
 
   m /= 2;
  
-  int* dev_edges_unzipped = dev_edges + 2 * m;
-
-  UnzipEdges<<<NUM_BLOCKS, NUM_THREADS>>>(m, dev_edges, dev_edges_unzipped);
+  UnzipEdges<<<NUM_BLOCKS, NUM_THREADS>>>(m, dev_edges, dev_edges + 2 * m);
+  CUCHECK(cudaMemcpyAsync(
+        dev_edges, dev_edges + 2 * m, 2 * m * sizeof(int),
+        cudaMemcpyDeviceToDevice));
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Unzip edges");
 
   CalculateNodePointers<false><<<NUM_BLOCKS, NUM_THREADS>>>(
-      n, m, dev_edges_unzipped, dev_nodes);
+      n, m, dev_edges, dev_nodes);
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Calculate node pointers (unzipped)");
 
@@ -225,7 +226,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
     cudaFuncSetCacheConfig(CalculateTriangles, cudaFuncCachePreferL1);
     cudaProfilerStart();
     CalculateTriangles<<<NUM_BLOCKS, NUM_THREADS>>>(
-        m, dev_edges_unzipped, dev_nodes, dev_results);
+        m, dev_edges, dev_nodes, dev_results);
     CUCHECK(cudaDeviceSynchronize());
     cudaProfilerStop();
     timer->Done("Calculate triangles");
@@ -235,7 +236,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
     timer->Done("Reduce");
   } else {
     result = MultiGPUCalculateTriangles(
-        n, m, dev_edges_unzipped, dev_nodes, device_count);
+        n, m, dev_edges, dev_nodes, device_count);
     timer->Done("Calculate triangles on multi GPU");
   }
 
