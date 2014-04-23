@@ -11,21 +11,22 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
-#include <utility>
 using namespace std;
 
-#define GROUP_SIZE 1
+#define NUM_THREADS 64
+#define NUM_BLOCKS_GENERIC 112
+#define NUM_BLOCKS_PER_MP 8
 
-__global__ void CalculatePointers(int n, int m, int* edges, int* pointers) {
+template<bool ZIPPED>
+__global__ void CalculateNodePointers(int n, int m, int* edges, int* nodes) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
   int step = gridDim.x * blockDim.x;
-  for (int i = from; i < m; i += step) {
-    int prev = i > 0 ? edges[2 * (i - 1) + 1] : -1;
-    int next = edges[2 * i + 1];
+  for (int i = from; i <= m; i += step) {
+    int prev = i > 0 ? edges[ZIPPED ? (2 * (i - 1) + 1) : (m + i - 1)] : -1;
+    int next = i < m ? edges[ZIPPED ? (2 * i + 1) : (m + i)] : n;
     for (int j = prev + 1; j <= next; ++j)
-      pointers[j] = i;
+      nodes[j] = i;
   }
-  if (from == 0) pointers[n] = m;
 }
 
 __global__ void CalculateFlags(int m, int* edges, int* pointers, bool* flags) {
@@ -50,9 +51,13 @@ __global__ void UnzipEdges(int m, int* edges, int* unzipped_edges) {
 }
 
 __global__ void CalculateTriangles(
-    int m, int* edges, int* pointers, uint64_t* results) {
-  int from = (blockDim.x * blockIdx.x + threadIdx.x) / GROUP_SIZE;
-  int step = gridDim.x * blockDim.x / GROUP_SIZE;
+    int m, int* edges, int* pointers, uint64_t* results,
+    int deviceCount = 1, int deviceIdx = 0) {
+  int from = 
+    gridDim.x * blockDim.x * deviceIdx +
+    blockDim.x * blockIdx.x +
+    threadIdx.x;
+  int step = deviceCount * gridDim.x * blockDim.x;
   uint64_t count = 0;
 
   for (int i = from; i < m; i += step) {
@@ -73,7 +78,7 @@ __global__ void CalculateTriangles(
     }
   }
 
-  results[from] = count;
+  results[blockDim.x * blockIdx.x + threadIdx.x] = count;
 }
 
 void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
@@ -84,22 +89,86 @@ void CudaAssert(cudaError_t status, const char* code, const char* file, int l) {
 
 #define CUCHECK(x) CudaAssert(x, #x, __FILE__, __LINE__)
 
-int NumberOfMP() {
-  int dev;
+int NumberOfMPs() {
+  int dev, val;
   CUCHECK(cudaGetDevice(&dev));
-  int val;
   CUCHECK(cudaDeviceGetAttribute(&val, cudaDevAttrMultiProcessorCount, dev));
   return val;
 }
 
-uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
-  Timer* timer = Timer::NewTimer();
-  
-  const int NUM_THREADS = 64;
-  const int NUM_BLOCKS = 8 * NumberOfMP();
-  const int NUM_WORKERS = NUM_THREADS * NUM_BLOCKS / GROUP_SIZE;
+uint64_t MultiGPUCalculateTriangles(
+    int n, int m, int* dev_edges, int* dev_nodes, int device_count) {
+  vector<int*> multi_dev_edges(device_count);
+  vector<int*> multi_dev_nodes(device_count);
 
-  timer->Done("Calculate number of threads and blocks");
+  multi_dev_edges[0] = dev_edges;
+  multi_dev_nodes[0] = dev_nodes;
+
+  for (int i = 1; i < device_count; ++i) {
+    CUCHECK(cudaSetDevice(i));
+    CUCHECK(cudaMalloc(&multi_dev_edges[i], m * 2 * sizeof(int)));
+    CUCHECK(cudaMalloc(&multi_dev_nodes[i], (n + 1) * sizeof(int)));
+    int dst = i, src = (i + 1) >> 2;
+    CUCHECK(cudaMemcpyPeer(
+          multi_dev_edges[dst], dst, multi_dev_edges[src], src,
+          m * 2 * sizeof(int)));
+    CUCHECK(cudaMemcpyPeer(
+          multi_dev_nodes[dst], dst, multi_dev_nodes[src], src,
+          (n + 1) * sizeof(int)));
+  }
+
+  vector<int> NUM_BLOCKS(device_count);
+  vector<uint64_t*> multi_dev_results(device_count); 
+
+  for (int i = 0; i < device_count; ++i) {
+    CUCHECK(cudaSetDevice(i));
+    NUM_BLOCKS[i] = NUM_BLOCKS_PER_MP * NumberOfMPs();
+    CUCHECK(cudaMalloc(
+          &multi_dev_results[i],
+          NUM_BLOCKS[i] * NUM_THREADS * sizeof(uint64_t)));
+  }
+
+  for (int i = 0; i < device_count; ++i) {
+    CUCHECK(cudaSetDevice(i));
+    CUCHECK(cudaFuncSetCacheConfig(CalculateTriangles, cudaFuncCachePreferL1));
+    CalculateTriangles<<<NUM_BLOCKS[i], NUM_THREADS>>>(
+        m, multi_dev_edges[i], multi_dev_nodes[i], multi_dev_results[i],
+        device_count, i);
+  }
+
+  uint64_t result = 0;
+
+  for (int i = 0; i < device_count; ++i) {
+    CUCHECK(cudaSetDevice(i));
+    CUCHECK(cudaDeviceSynchronize());
+    result += SumResults(NUM_BLOCKS[i] * NUM_THREADS, multi_dev_results[i]);
+  }
+
+  for (int i = 1; i < device_count; ++i) {
+    CUCHECK(cudaSetDevice(i));
+    CUCHECK(cudaFree(multi_dev_edges[i]));
+    CUCHECK(cudaFree(multi_dev_nodes[i]));
+  }
+
+  for (int i = 0; i < device_count; ++i) {
+    CUCHECK(cudaSetDevice(i));
+    CUCHECK(cudaFree(multi_dev_results[i]));
+  }
+
+  cudaSetDevice(0);
+  return result;
+}
+
+uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
+  return GpuEdgeIterator(unordered_edges, 1);
+}
+
+uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
+  Timer* timer = Timer::NewTimer();
+
+  const int NUM_BLOCKS = NUM_BLOCKS_PER_MP * NumberOfMPs();
+
+  timer->Done("Query number of MPs");
 
   int n = NumVertices(unordered_edges);
   int m = unordered_edges.size();
@@ -108,13 +177,14 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
 
   int* dev_edges;
   bool* dev_flags;
-  int* dev_pointers;
+  int* dev_nodes;
   uint64_t* dev_results;
 
   CUCHECK(cudaMalloc(&dev_edges, m * 2 * sizeof(int)));
   CUCHECK(cudaMalloc(&dev_flags, m * sizeof(bool)));
-  CUCHECK(cudaMalloc(&dev_pointers, (n + 1) * sizeof(int)));
-  CUCHECK(cudaMalloc(&dev_results, NUM_WORKERS * sizeof(uint64_t)));
+  CUCHECK(cudaMalloc(&dev_nodes, (n + 1) * sizeof(int)));
+  CUCHECK(cudaMalloc(&dev_results, 
+        NUM_BLOCKS * NUM_THREADS * sizeof(uint64_t)));
 
   timer->Done("Malloc");
 
@@ -128,55 +198,52 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Sort edges");
 
-  CalculatePointers<<<NUM_BLOCKS, NUM_THREADS>>>(n, m, dev_edges, dev_pointers);
+  CalculateNodePointers<true><<<NUM_BLOCKS, NUM_THREADS>>>(
+      n, m, dev_edges, dev_nodes);
   CUCHECK(cudaDeviceSynchronize());
-  timer->Done("Calculate pointers 1");
+  timer->Done("Calculate node pointers (zipped)");
 
   CalculateFlags<<<NUM_BLOCKS, NUM_THREADS>>>(
-      m, dev_edges, dev_pointers, dev_flags);
+      m, dev_edges, dev_nodes, dev_flags);
   RemoveMarkedEdges(m, dev_edges, dev_flags);
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Remove backward edges");
 
   m /= 2;
  
-  CalculatePointers<<<NUM_BLOCKS, NUM_THREADS>>>(n, m, dev_edges, dev_pointers);
-  CUCHECK(cudaDeviceSynchronize());
-  timer->Done("Calculate pointers 2");
-
   int* dev_edges_unzipped = dev_edges + 2 * m;
 
   UnzipEdges<<<NUM_BLOCKS, NUM_THREADS>>>(m, dev_edges, dev_edges_unzipped);
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Unzip edges");
 
-  cudaFuncSetCacheConfig(CalculateTriangles, cudaFuncCachePreferL1);
-  cudaProfilerStart();
-  CalculateTriangles<<<NUM_BLOCKS, NUM_THREADS>>>(
-      m, dev_edges_unzipped, dev_pointers, dev_results);
+  CalculateNodePointers<false><<<NUM_BLOCKS, NUM_THREADS>>>(
+      n, m, dev_edges_unzipped, dev_nodes);
   CUCHECK(cudaDeviceSynchronize());
-  cudaProfilerStop();
-  timer->Done("Calculate triangles");
-
-  /*
-  int BB, TT;
-  while (cin >> BB >> TT) {
-    cerr << BB << " " << TT ;
-    timer->Reset();
-    CalculateTriangles<<<BB,TT>>>(
-        m, dev_edges_unzipped, dev_pointers, (uint64_t*)dev_flags);
-    CUCHECK(cudaDeviceSynchronize());
-    timer->Done("");
-  }
-  //*/
+  timer->Done("Calculate node pointers (unzipped)");
 
   uint64_t result = 0;
-  result = SumResults(NUM_WORKERS, dev_results);
-  timer->Done("Reduce");
+
+  if (device_count == 1) {
+    cudaFuncSetCacheConfig(CalculateTriangles, cudaFuncCachePreferL1);
+    cudaProfilerStart();
+    CalculateTriangles<<<NUM_BLOCKS, NUM_THREADS>>>(
+        m, dev_edges_unzipped, dev_nodes, dev_results);
+    CUCHECK(cudaDeviceSynchronize());
+    cudaProfilerStop();
+    timer->Done("Calculate triangles");
+
+    result = SumResults(NUM_BLOCKS * NUM_THREADS, dev_results);
+    timer->Done("Reduce");
+  } else {
+    result = MultiGPUCalculateTriangles(
+        n, m, dev_edges_unzipped, dev_nodes, device_count);
+    timer->Done("Calculate triangles on multi GPU");
+  }
 
   CUCHECK(cudaFree(dev_edges));
   CUCHECK(cudaFree(dev_flags));
-  CUCHECK(cudaFree(dev_pointers));
+  CUCHECK(cudaFree(dev_nodes));
   CUCHECK(cudaFree(dev_results));
   timer->Done("Free");
 

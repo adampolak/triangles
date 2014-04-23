@@ -38,6 +38,8 @@ int main(int argc, char *argv[]) {
   t->Done("ALGORITHM: Alt preproc");
   results.push_back(GpuEdgeIterator(edges));
   t->Done("ALGORITHM: Forward GPU");
+  // results.push_back(GpuEdgeIterator(edges, 4));
+  t->Done("ALGORITHM: Forward multi GPU");
   for (uint64_t result : results)
     cerr << result << " ";
   cerr << endl;
