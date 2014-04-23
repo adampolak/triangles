@@ -169,27 +169,26 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
   CUCHECK(cudaSetDevice(0));
   const int NUM_BLOCKS = NUM_BLOCKS_PER_MP * NumberOfMPs();
 
-  timer->Done("Query number of MPs");
-
-  int n = NumVertices(unordered_edges);
   int m = unordered_edges.size();
-
-  timer->Done("Calculate number of vertices");
 
   int* dev_edges;
   int* dev_nodes;
   CUCHECK(cudaMalloc(&dev_edges, m * 2 * sizeof(int)));
-  CUCHECK(cudaMalloc(&dev_nodes, (n + 1) * sizeof(int)));
   CUCHECK(cudaMemcpyAsync(
         dev_edges, unordered_edges.data(), m * 2 * sizeof(int),
         cudaMemcpyHostToDevice));
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Memcpy edges from host do device");
 
+  int n = NumVerticesGPU(m, dev_edges);
+
+  timer->Done("Calculate number of vertices");
+
   SortEdges(m, dev_edges);
   CUCHECK(cudaDeviceSynchronize());
   timer->Done("Sort edges");
 
+  CUCHECK(cudaMalloc(&dev_nodes, (n + 1) * sizeof(int)));
   CalculateNodePointers<true><<<NUM_BLOCKS, NUM_THREADS>>>(
       n, m, dev_edges, dev_nodes);
   CUCHECK(cudaDeviceSynchronize());
