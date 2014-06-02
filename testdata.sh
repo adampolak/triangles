@@ -16,6 +16,7 @@ http://www.cc.gatech.edu/dimacs10/archive/data/kronecker/kron_g500-logn21.graph.
 
 make convert-from-snap-main.e
 make convert-from-dimacs-main.e
+make create-barabasi-albert-main.e
 
 mkdir -p data
 cd data
@@ -41,3 +42,10 @@ do
     rm ${base}.graph
   fi
 done
+
+if [ -f barabasi-albert.bin ]
+then
+  echo Skipping barabasi-albert because it already exists
+else
+  ../create-barabasi-albert-main.e 50 200000 barabasi-albert.bin
+fi

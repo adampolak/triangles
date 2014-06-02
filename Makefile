@@ -16,6 +16,9 @@ convert-to-latapy-main.e: convert-to-latapy-main.cpp graph.cpp
 latapy.e: latapy.c
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
+create-barabasi-albert-main.e: create-barabasi-albert-main.cpp graph.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
 %.o: %.cu %.h
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
