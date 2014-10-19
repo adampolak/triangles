@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-std=c++0x -O3
+CXXFLAGS=-std=c++0x -O3 -fno-stack-protector
 
 NVCC=/usr/local/cuda/bin/nvcc
 NVCCFLAGS=-m64 -arch sm_20 -O3
@@ -17,6 +17,9 @@ latapy.e: latapy.c
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 create-barabasi-albert-main.e: create-barabasi-albert-main.cpp graph.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+create-watts-strogatz-main.e: create-watts-strogatz-main.cpp graph.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 %.o: %.cu %.h
