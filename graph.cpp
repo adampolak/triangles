@@ -83,8 +83,9 @@ void RemoveDuplicateEdges(Edges* edges) {
 void RemoveSelfLoops(Edges* edges) {
   for (int i = 0; i < edges->size(); ++i) {
     if ((*edges)[i].first == (*edges)[i].second) {
-      swap((*edges)[i], edges->back());
-      edges->resize(edges->size() - 1);
+      edges->at(i) = edges->back();
+      edges->pop_back();
+      --i;
     }
   }
 }
