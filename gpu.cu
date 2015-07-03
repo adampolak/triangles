@@ -29,14 +29,14 @@ __global__ void CalculateNodePointers(int n, int m, int* edges, int* nodes) {
   }
 }
 
-__global__ void CalculateFlags(int m, int* edges, int* pointers, bool* flags) {
+__global__ void CalculateFlags(int m, int* edges, int* nodes, bool* flags) {
   int from = blockDim.x * blockIdx.x + threadIdx.x;
   int step = gridDim.x * blockDim.x;
   for (int i = from; i < m; i += step) {
     int a = edges[2 * i];
     int b = edges[2 * i + 1];
-    int deg_a = pointers[a + 1] - pointers[a];
-    int deg_b = pointers[b + 1] - pointers[b];
+    int deg_a = nodes[a + 1] - nodes[a];
+    int deg_b = nodes[b + 1] - nodes[b];
     flags[i] = (deg_a < deg_b) || (deg_a == deg_b && a < b);
   }
 }
@@ -51,7 +51,7 @@ __global__ void UnzipEdges(int m, int* edges, int* unzipped_edges) {
 }
 
 __global__ void CalculateTriangles(
-    int m, const int* __restrict__ edges, const int* __restrict__ pointers,
+    int m, const int* __restrict__ edges, const int* __restrict__ nodes,
     uint64_t* results, int deviceCount = 1, int deviceIdx = 0) {
   int from =
     gridDim.x * blockDim.x * deviceIdx +
@@ -63,8 +63,8 @@ __global__ void CalculateTriangles(
   for (int i = from; i < m; i += step) {
     int u = edges[i], v = edges[m + i];
 
-    int u_it = pointers[u], u_end = pointers[u + 1];
-    int v_it = pointers[v], v_end = pointers[v + 1];
+    int u_it = nodes[u], u_end = nodes[u + 1];
+    int v_it = nodes[v], v_end = nodes[v + 1];
 
     int a = edges[u_it], b = edges[v_it];
     while (u_it < u_end && v_it < v_end) {
@@ -220,7 +220,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
     CalculateNodePointers<true><<<NUM_BLOCKS, NUM_THREADS>>>(
         n, m, dev_edges, dev_nodes);
     CUCHECK(cudaDeviceSynchronize());
-    timer->Done("Calculate node pointers (zipped)");
+    timer->Done("Calculate nodes array for two-way zipped edges");
 
     bool* dev_flags;
     CUCHECK(cudaMalloc(&dev_flags, m * sizeof(bool)));
@@ -268,7 +268,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
   CalculateNodePointers<false><<<NUM_BLOCKS, NUM_THREADS>>>(
       n, m, dev_edges, dev_nodes);
   CUCHECK(cudaDeviceSynchronize());
-  timer->Done("Calculate node pointers (unzipped)");
+  timer->Done("Calculate nodes array for one-way unzipped edges");
 
   uint64_t result = 0;
 
