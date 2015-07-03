@@ -1,4 +1,4 @@
-#include "forward.h"
+#include "cpu.h"
 #include "timer.h"
 
 #include <algorithm>
@@ -29,7 +29,7 @@ int IntersectionSize(
 }
 }  // namespace
 
-uint64_t Forward(const AdjList& graph) {
+uint64_t CpuForward(const AdjList& graph) {
   const int n = graph.size();
   vector<vector<int>> A(n);
   
@@ -54,7 +54,7 @@ uint64_t Forward(const AdjList& graph) {
   return c;
 }
 
-uint64_t CompactForward(const AdjList& graph) {
+uint64_t CpuCompactForward(const AdjList& graph) {
   const int n = graph.size();
 
   vector<pair<int, int>> deg;
@@ -92,17 +92,16 @@ uint64_t CompactForward(const AdjList& graph) {
   return c;
 }
 
-uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
+uint64_t CpuCompactForwardForEdgeArray(const Edges& edges) {
   unique_ptr<Timer> timer(Timer::NewTimer());
     
-  const int n = NumVertices(unordered_edges);
+  const int n = NumVertices(edges);
   timer->Done("Calculate number of vertices");
   
-  Edges edges;
+  Edges sorted_edges;
   {
-    //*
     vector<int> deg(n);
-    for (const pair<int, int>& edge : unordered_edges)
+    for (const pair<int, int>& edge : edges)
       deg[edge.first]++;
     timer->Done("Calculate degrees");
     vector<pair<int, int>> temp(n);
@@ -113,44 +112,41 @@ uint64_t CompactForwardWithPreproc(const Edges& unordered_edges) {
     for (int i = 0; i < n; ++i)
       rename[temp[i].second] = i;
     timer->Done("Calculate renaming permutation");
-    //*/
-    edges.reserve(unordered_edges.size() / 2);
-    for (const pair<int, int>& edge : unordered_edges) {
+    sorted_edges.reserve(edges.size() / 2);
+    for (const pair<int, int>& edge : edges) {
       int s = edge.first, t = edge.second;
       s = rename[s];
       t = rename[t];
       if (s > t)
-        edges.push_back(make_pair(s, t));
+        sorted_edges.push_back(make_pair(s, t));
     }
-    timer->Done("Copy and (optionally) rename edges");
-    sort(edges.begin(), edges.end());
+    timer->Done("Copy and rename edges");
+    sort(sorted_edges.begin(), sorted_edges.end());
     timer->Done("Sort edges");
   }
 
-  vector<int> ends(edges.size());
-  for (int i = 0; i < edges.size(); ++i)
-    ends[i] = edges[i].second;
+  vector<int> heads(sorted_edges.size());
+  for (int i = 0; i < sorted_edges.size(); ++i)
+    heads[i] = sorted_edges[i].second;
 
-  vector<vector<int>::iterator> pointers;
-  pointers.reserve(n + 1);
-  for (int k = 0; k <= edges[0].first; ++k)
-    pointers.push_back(ends.begin());
-  for (int i = 1; i < edges.size(); ++i)
-    if (edges[i-1].first != edges[i].first) {
-      int k = edges[i].first - edges[i-1].first;
+  vector<vector<int>::iterator> nodes;
+  nodes.reserve(n + 1);
+  for (int k = 0; k <= sorted_edges.front().first; ++k)
+    nodes.push_back(heads.begin());
+  for (int i = 1; i < sorted_edges.size(); ++i)
+    if (sorted_edges[i-1].first != sorted_edges[i].first) {
+      int k = sorted_edges[i].first - sorted_edges[i-1].first;
       while (k--)
-        pointers.push_back(ends.begin() + i);
+        nodes.push_back(heads.begin() + i);
     }
-  while (pointers.size() < n + 1)
-    pointers.push_back(ends.end());
-  
-  timer->Done("Copy edges and calculate pointers");
-  
+  while (nodes.size() < n + 1)
+    nodes.push_back(heads.end());
+
+  timer->Done("Copy edges and calculate nodes");
   uint64_t c = 0;
-  for (const pair<int, int>& edge : edges) {
+  for (const pair<int, int>& edge : sorted_edges) {
     const int s = edge.first, t = edge.second;
-    c += IntersectionSize(
-        pointers[s], pointers[s+1], pointers[t], pointers[t+1]);
+    c += IntersectionSize(nodes[s], nodes[s+1], nodes[t], nodes[t+1]);
   }
   return c;
 }

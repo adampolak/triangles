@@ -28,7 +28,7 @@ create-watts-strogatz-main.e: create-watts-strogatz-main.cpp graph.cpp
 %.o: %.cpp %.h
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-main.e: forward.o gpu.o gpu-thrust.o graph.o main.o timer.o
+main.e: cpu.o gpu.o gpu-thrust.o graph.o main.o timer.o
 	$(NVCC) $^ -o $@
 
 .PHONY: clean

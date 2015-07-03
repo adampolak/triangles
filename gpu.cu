@@ -186,17 +186,17 @@ uint64_t MultiGPUCalculateTriangles(
   return result;
 }
 
-uint64_t GpuEdgeIterator(const Edges& unordered_edges) {
-  return GpuEdgeIterator(unordered_edges, 1);
+uint64_t GpuForward(const Edges& edges) {
+  return MultiGpuForward(edges, 1);
 }
 
-uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
+uint64_t MultiGpuForward(const Edges& edges, int device_count) {
   Timer* timer = Timer::NewTimer();
 
   CUCHECK(cudaSetDevice(0));
   const int NUM_BLOCKS = NUM_BLOCKS_PER_MP * NumberOfMPs();
 
-  int m = unordered_edges.size(), n;
+  int m = edges.size(), n;
 
   int* dev_edges;
   int* dev_nodes;
@@ -204,7 +204,7 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
   if ((uint64_t)m * 4 * sizeof(int) < GlobalMemory()) {  // just approximation
     CUCHECK(cudaMalloc(&dev_edges, m * 2 * sizeof(int)));
     CUCHECK(cudaMemcpyAsync(
-          dev_edges, unordered_edges.data(), m * 2 * sizeof(int),
+          dev_edges, edges.data(), m * 2 * sizeof(int),
           cudaMemcpyHostToDevice));
     CUCHECK(cudaDeviceSynchronize());
     timer->Done("Memcpy edges from host do device");
@@ -239,14 +239,14 @@ uint64_t GpuEdgeIterator(const Edges& unordered_edges, int device_count) {
     CUCHECK(cudaDeviceSynchronize());
     timer->Done("Unzip edges");
   } else {
-    Edges edges = RemoveBackwardEdgesCPU(unordered_edges);
+    Edges fwd_edges = RemoveBackwardEdgesCPU(edges);
     m /= 2;
     timer->Done("Remove backward edges on CPU");
 
     int* dev_temp;
     CUCHECK(cudaMalloc(&dev_temp, m * 2 * sizeof(int)));
     CUCHECK(cudaMemcpyAsync(
-          dev_temp, edges.data(), m * 2 * sizeof(int), cudaMemcpyHostToDevice));
+          dev_temp, fwd_edges.data(), m * 2 * sizeof(int), cudaMemcpyHostToDevice));
     CUCHECK(cudaDeviceSynchronize());
     timer->Done("Memcpy edges from host do device");
 
