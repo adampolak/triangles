@@ -51,8 +51,8 @@ __global__ void UnzipEdges(int m, int* edges, int* unzipped_edges) {
 }
 
 __global__ void CalculateTriangles(
-    int m, int* edges, int* pointers, uint64_t* results,
-    int deviceCount = 1, int deviceIdx = 0) {
+    int m, const int* __restrict__ edges, const int* __restrict__ pointers,
+    uint64_t* results, int deviceCount = 1, int deviceIdx = 0) {
   int from =
     gridDim.x * blockDim.x * deviceIdx +
     blockDim.x * blockIdx.x +

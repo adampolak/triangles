@@ -1,8 +1,8 @@
 CXX=g++
-CXXFLAGS=-std=c++0x -O3 -fno-stack-protector
+CXXFLAGS=-std=c++11 -O3 -fno-stack-protector
 
 NVCC=/usr/local/cuda/bin/nvcc
-NVCCFLAGS=-m64 -arch sm_20 -O3
+NVCCFLAGS=-arch sm_50 -O3 -Xptxas -dlcm=ca
 
 convert-from-dimacs-main.e: convert-from-dimacs-main.cpp graph.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
