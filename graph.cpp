@@ -1,55 +1,8 @@
 #include "graph.h"
 
 #include <algorithm>
-#include <cassert>
-#include <cstdio>
 #include <fstream>
-#include <string>
-#include <sstream>
-#include <unordered_map>
-#include <unordered_set>
 using namespace std;
-
-Edges ReadEdgesFromSNAPFile(const char* filename) {
-  Edges edges;
-  unordered_map<int, int> nodes;
-  int next_node = 0;
-  ifstream in(filename);
-  assert(in.is_open());
-  string buf;
-  while (getline(in, buf)) {
-    if (buf.empty() || buf[0] == '#')
-      continue;  // ignore empty lines and comments
-    int node_a, node_b;
-    sscanf(buf.c_str(), "%d %d", &node_a, &node_b);
-    if (!nodes.count(node_a))
-      nodes[node_a] = next_node++;
-    if (!nodes.count(node_b))
-      nodes[node_b] = next_node++;
-    edges.push_back(make_pair(nodes[node_a], nodes[node_b]));
-  }
-  return edges;
-}
-
-Edges ReadEdgesFromDIMACSFile(const char* filename) {
-  Edges edges;
-  ifstream in(filename);
-  assert(in.is_open());
-  string buf;
-  getline(in, buf);
-  int n, m;
-  sscanf(buf.c_str(), "%d %d", &n, &m);
-  edges.reserve(2 * m);
-  for (int i = 0; i < n; ++i) {
-    getline(in, buf);
-    istringstream parser(buf);
-    int neighbor;
-    while (parser >> neighbor) {
-      edges.push_back(make_pair(i, neighbor - 1));
-    }
-  }
-  return edges;
-}
 
 Edges ReadEdgesFromFile(const char* filename) {
   Edges edges;
